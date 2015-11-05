@@ -1,0 +1,382 @@
+
+as12, an absolute assembler for Motorola MCU's, version 1.2h
+
+                        ********************************************************************************
+                        * Description: Program starts by the push of a button connected to Port J. The *
+                        * piezo speaker will then chirp and begin the program as follows: Allows user  *
+                        * to select (high, medium, or low) velocity and time values utilizing dbug     *
+                        * subroutines.  The program will calculate the velocity change as a function   *
+                        * of time and display results to screen. TA, TC, delta velocity, and the total *
+                        * time will be calculated based on the user's selection and displayed to the   *
+                        * screen.                                                                      *
+                        *                                                                              *
+                        * Group3 (33.3% each)                                                          *
+                        * Logan Barnes, Jordan Lee, Justin Limb                                        *
+                        * Date: 10/31/2015                                                             *
+                        * ECE 3730                                                                     *
+                        * Ch. 5 Project                                                                *
+                        * Code is utilized for a 9S12 trainer board                                    *
+                        ********************************************************************************
+                        
+                        
+1000                                    ORG   $1000
+1000                    R_MOTOR         RMW   !30        ;Reserve 30 words of data for right motor
+103c                    L_MOTOR         RMW   !30        ;Reserve 30 words of data for left motor
+                        
+000d                    CR:             EQU   $0D        ;Return carrier in ascii
+000a                    LF:             EQU   $0A        ;Linefeed in ascii
+                        
+0268                    PORTJ           EQU   $0268      ;Port J data register for switch input
+026a                    DDRJ            EQU   $026A      ;Port J direction register
+0000                    DDRJ_INI        EQU   $00        ;Port J input mask
+0240                    PORTT           EQU   $0240      ;Port T data register for piezo speaker output
+0242                    DDRT            EQU   $0242      ;Port T direction register
+0020                    DDRT_INI        EQU   $20        ;Port T(5) output mask
+0001                    SWITCH          EQU   $01        ;Port J(0) assertion testing
+0020                    PIEZO           EQU   $20        ;Port T(5) output for piezo sound
+                        
+ee84                    GETCHAR         EQU   $EE84      ;9S12
+ee86                    PUTCHAR         EQU   $EE86      ;9S12
+ee88                    PRINTF          EQU   $EE88      ;9S12
+                        
+2710                    HIGH            EQU   $2710      ;10k decimal
+03e8                    MEDIUM          EQU   $03E8      ;1k decimal
+0064                    LOW             EQU   $0064      ;100 decimal
+                        
+1800                    TA              EQU   $1800      ;Address to store ta
+1802                    TC              EQU   $1802      ;Address to store tc
+1804                    TT              EQU   $1804      ;Address to store total time
+1806                    DELTA_V         EQU   $1806      ;Address to store delta velocity
+1808                    NEG_DELTA_V     EQU   $1808      ;Address to store negative delta velocity
+180a                    V_CONSTANT      EQU   $180A      ;Address to store constant velocity
+180c                    T_TOTAL         EQU   $180C      ;Address to store total time that user selects
+                        
+2000                    STACK           EQU   $2000      ;Highest address of data RAM in 9S12
+0005                    RATIO           EQU   !5         ;Ratio of time intervals for calculations 20%
+000a                    INCREMENT       EQU   !10        ;# of velocity increments in acc interval
+                        
+1078 20 20 20 20 20 20  ASSERT_MSG      FCC                '         SWITCH ASSERTED - STARTING PROGRAM'
+     20 20 20 53 57 49
+     54 43 48 20 41 53
+     53 45 52 54 45 44
+     20 2d 20 53 54 41
+     52 54 49 4e 47 20
+     50 52 4f 47 52 41
+     4d
+10a3 0d 0a 0d 0a 00                     DB CR,LF,CR,LF,0
+10a8 20 20 20 20 20 20  INTRO_MSG       FCC                '                MOTOR CONTROL SOFTWARE'
+     20 20 20 20 20 20
+     20 20 20 20 4d 4f
+     54 4f 52 20 43 4f
+     4e 54 52 4f 4c 20
+     53 4f 46 54 57 41
+     52 45
+10ce 0d 0a 0d 0a 00                     DB CR,LF,CR,LF,0
+10d3 50 6c 65 61 73 65  V1_MSG          FCC                'Please choose a constant velocity:'
+     20 63 68 6f 6f 73
+     65 20 61 20 63 6f
+     6e 73 74 61 6e 74
+     20 76 65 6c 6f 63
+     69 74 79 3a
+10f5 0d 0a 00                           DB CR,LF,0                 ;Return, Line feed, NULL terminator.
+10f8 48 69 67 68 28 31  V2_MSG          FCC                'High(1), Medium(2), or Low(3)'
+     29 2c 20 4d 65 64
+     69 75 6d 28 32 29
+     2c 20 6f 72 20 4c
+     6f 77 28 33 29
+1115 0d 0a 00                           DB CR,LF,0
+1118 50 6c 65 61 73 65  T1_MSG          FCC                'Please choose a total time period:'
+     20 63 68 6f 6f 73
+     65 20 61 20 74 6f
+     74 61 6c 20 74 69
+     6d 65 20 70 65 72
+     69 6f 64 3a
+113a 0d 0a 00                           DB CR,LF,0
+113d 48 69 67 68 28 31  T2_MSG          FCC                'High(1), Medium(2), or Low(3)'
+     29 2c 20 4d 65 64
+     69 75 6d 28 32 29
+     2c 20 6f 72 20 4c
+     6f 77 28 33 29
+115a 0d 0a 00                           DB CR,LF,0
+115d 20 20 20 20 20 20  V_P_MSG         FCC                '                           VELOCITY PROFILE'
+     20 20 20 20 20 20
+     20 20 20 20 20 20
+     20 20 20 20 20 20
+     20 20 20 56 45 4c
+     4f 43 49 54 59 20
+     50 52 4f 46 49 4c
+     45
+1188 0d 0a 0d 0a 00                     DB CR,LF,CR,LF,0
+118d 56 65 6c 6f 63 69  V_OUT           FCC                'Velocity %d:                 %X'
+     74 79 20 25 64 3a
+     20 20 20 20 20 20
+     20 20 20 20 20 20
+     20 20 20 20 20 25
+     58
+11ac 0d 0a 00                           DB CR,LF,0
+11af 54 41 3a 20 20 20  TA_OUT          FCC                'TA:                          %X'
+     20 20 20 20 20 20
+     20 20 20 20 20 20
+     20 20 20 20 20 20
+     20 20 20 20 20 25
+     58
+11ce 0d 0a 00                           DB CR,LF,0
+11d1 54 43 3a 20 20 20  TC_OUT          FCC                'TC:                          %X'
+     20 20 20 20 20 20
+     20 20 20 20 20 20
+     20 20 20 20 20 20
+     20 20 20 20 20 25
+     58
+11f0 0d 0a 00                           DB CR,LF,0
+11f3 54 74 6f 74 61 6c  TTOTAL_OUT      FCC                'Ttotal:                      %X'
+     3a 20 20 20 20 20
+     20 20 20 20 20 20
+     20 20 20 20 20 20
+     20 20 20 20 20 25
+     58
+1212 0d 0a 00                           DB CR,LF,0
+1215 44 65 6c 74 61 56  DELTAV_OUT      FCC                'DeltaV:                      %X'
+     3a 20 20 20 20 20
+     20 20 20 20 20 20
+     20 20 20 20 20 20
+     20 20 20 20 20 25
+     58
+1234 0d 0a 0d 0a 00                     DB CR,LF,CR,LF,0
+1239                    NEWLINE         FCC                ''
+1239 0d 0a 0d 0a 00                     DB CR,LF,CR,LF,0
+123e 44 45 42 55 47     DEBUG           FCC                'DEBUG'
+1243 0d 0a 00                           DB CR,LF,0
+                        
+                        
+2000                    MAIN        ORG     $2000              ;Start program at this address 9S12
+2000 cf 20 00                       LDS     #STACK             ;Max address for RAM in 9S12 for stack
+2003 86 00                          LDAA    #DDRJ_INI          ;Load DDRJ mask to A
+2005 7a 02 6a                       STAA    DDRJ               ;Configure port j(0) as input pin
+2008 86 20                          LDAA    #DDRT_INI          ;Load DDRT mask to A
+200a 7a 02 42                       STAA    DDRT               ;Configure port T(5) as output pin
+                        
+200d 16 20 24           	    JSR     POLL_SWITCH        ;Poll the switch for starting
+2010 16 20 ae                       JSR     SPLASH             ;Display initial prompt for entering data
+2013 fc 18 0a                       LDD     V_CONSTANT         ;Load register D with constant velocity
+2016 fd 18 0c                       LDY     T_TOTAL            ;Load register Y with total time value
+2019 07 37                          BSR     SUB1               ;Call first subroutine by value
+201b 07 5d                          BSR     SUB2               ;Call second subroutine
+201d cd 10 00                       LDY     #R_MOTOR           ;Call by reference
+2020 16 21 37                       JSR     DISP_DATA          ;Display data to screen subroutine
+2023 3f                             SWI                        ;End
+                                    END
+                        
+                                    
+                        ;Poll the switch on port J (0) for assertion
+                        ;Chirp piezo once asserted
+2024 b6 02 68           POLL_SWITCH LDAA    PORTJ              ;Load A with port J for detecting switch
+2027 84 01                          ANDA    #SWITCH            ;Verify port j(0) for testing switch
+2029 81 01                          CMPA    #SWITCH            ;Is port j(0) a high?
+202b 26 f7                          BNE     POLL_SWITCH        ;If no switch contact, poll again
+202d cc 10 78                       LDD     #ASSERT_MSG        ;Display switch assertion message
+2030 fe ee 88                       LDX     PRINTF
+2033 15 00                          JSR     0,X
+                        
+2035 cd 01 5e           	    LDY     #$015E             ;Chirp length ((1/3500) * 0x15E = 100 mS)
+2038 86 20              CHIRP       LDAA    #PIEZO             ;Port T(5) mask into A
+203a 7a 02 40                       STAA    PORTT              ;Output high to piezo port T(5)
+203d 07 0a                          BSR     DELAY              ;Square wave time high
+203f 87                             CLRA
+2040 7a 02 40                       STAA    PORTT              ;Turn off piezo
+2043 07 04                          BSR     DELAY              ;Square wave time low
+2045 03                             DEY
+2046 26 f0                          BNE     CHIRP
+2048 3d                             RTS
+                        
+                        ;DEL interval equals 250nS ((24MHz BUS speed / 1) * 6 cycles = 250nS)
+                        ;250nS * 0x236 = 143 uS --> (1 / (143 uS * 2 Delays) = 3.5 KHz Tone)
+2049 ce 02 36           DELAY       LDX     #$0236
+204c 09                 DEL         DEX                        ;1 cycle
+204d 08                             INX                        ;1 cycle
+204e 09                             DEX                        ;1 cycle
+204f 26 fb                          BNE     DEL                ;3 cycles
+2051 3d                             RTS
+                        
+                        
+2052 7d 18 04           SUB1        STY     TT                 ;Store total time into memory
+2055 ce 00 0a                       LDX     #INCREMENT         ;Load X with acceleration ratio time (10)
+2058 18 10                          IDIV                       ;Divide D (vel value) by register X (10)
+205a 7e 18 06                       STX     DELTA_V            ;Store delta velocity into $1806
+205d b7 54                          TFR     X,D
+205f 41                             COMA                       ;Complement A for making negative number
+2060 51                             COMB                       ;Complement B for making negative number
+2061 b7 45                          TFR     D,X
+2063 08                             INX                        ;Add 1 to complemented value to make 2's
+                                                               ;complement (negative delta velocity)
+2064 7e 18 08                       STX     NEG_DELTA_V        ;Create negative delta velocity for
+                                                               ;subtracting later
+2067 b7 64                          TFR     Y,D                ;Transfer total time into D for division
+2069 ce 00 05                       LDX     #RATIO             ;Load X with time interval ratio time (5)
+206c 18 10                          IDIV                       ;Divide D (tot time) by time interval (5)
+206e 7e 18 00                       STX     TA                 ;Acceleration time ends (ta) 16 bits
+                                                               ;(1/5 of total time), store into $1800
+2071 b7 64                          TFR     Y,D                ;Transfer total time into D
+2073 b3 18 00                       SUBD    TA                 ;Time when deceleration begins (tc)
+2076 7c 18 02                       STD     TC                 ;Store time of deceleration into $1802
+2079 3d                             RTS                        ;Return from subroutine
+                        
+                        
+207a cc 00 00           SUB2        LDD     #$0
+207d ce 10 00                       LDX     #R_MOTOR           ;Starting index address for right motor
+2080 cd 10 3c                       LDY     #L_MOTOR           ;Starting index address for left motor
+2083 6c 31              ACC_VEL     STD     2,X+               ;Store values of velocity for right motor
+2085 6c 71                          STD     2,Y+               ;Store values of velocity for left motor
+2087 f3 18 06                       ADDD    DELTA_V            ;Add delta velocity to accumulative vel.
+208a bc 18 0a                       CPD     V_CONSTANT         ;Compare accumulative vel with peak vel
+208d 2f f4                          BLE     ACC_VEL            ;Accumulate vel values until constant
+                        
+208f f3 18 08                       ADDD    NEG_DELTA_V        ;Set constant velocity again
+2092 3b                             PSHD                       ;Store D to free up register for A
+2093 86 08                          LDAA    #$8                ;Num of times constant vel will display
+2095 36                 CON_VEL     PSHA                       ;Save counter to free up D register
+2096 ec 81                          LDD     1,SP               ;Retrieve constant velocity from stack
+2098 6c 31                          STD     2,X+               ;Store values of velocity for right motor
+209a 6c 71                          STD     2,Y+               ;Store values of velocity for left motor
+209c 32                             PULA                       ;Retrieve counter from stack
+209d 43                             DECA                       ;Decrement cycle step-counter
+209e 26 f5                          BNE     CON_VEL            ;Store constant vel until counter is 0
+                        
+20a0 3a                             PULD                       ;Retrieve constant velocity from stack
+20a1 6c 31              DEC_VEL     STD     2,X+               ;Store values of velocity for right motor
+20a3 6c 71                          STD     2,Y+               ;Store values of velocity for left motor
+20a5 f3 18 08                       ADDD    NEG_DELTA_V        ;Subtract delta vel from accumulative vel
+20a8 8c 00 00                       CPD     #$0                ;Compare accumulative velocity with 0
+20ab 2c f4                          BGE     DEC_VEL            ;Decrement velocity values until negative
+20ad 3d                             RTS
+                        
+                        
+                        ; Get input from the user asking for a constant velocity and a total time.
+                        ; The EQUated values should be used for both time and velocity.
+                        
+                        ; Print welcome
+20ae cc 10 a8           SPLASH      LDD     #INTRO_MSG
+20b1 fe ee 88                       LDX     PRINTF
+20b4 15 00                          JSR     0,X
+                        ; Tell user to input constant velocity
+20b6 cc 10 d3                       LDD     #V1_MSG
+20b9 fe ee 88                       LDX     PRINTF
+20bc 15 00                          JSR     0,X
+20be cc 10 f8                       LDD     #V2_MSG
+20c1 fe ee 88                       LDX     PRINTF
+20c4 15 00                          JSR     0,X
+                        
+                        ; Capture constant velocity
+                        ; Get the user's input
+20c6 fe ee 84                       LDX     GETCHAR            ;Get user input
+20c9 15 00                          JSR     0,X
+20cb fe ee 86                       LDX     PUTCHAR            ;Display user input to screen
+20ce 15 00                          JSR     0,X
+20d0 c1 31                          CMPB    #'1                ;Is user input a '1' for high?
+20d2 27 14                          BEQ     STORE_HV           ;If '1', jump to routine for storing high
+20d4 c1 32                          CMPB    #'2                ;Is user input a '2' for medium?
+20d6 27 08                          BEQ     STORE_MV           ;If '2', jump to routine for storing med
+20d8 cc 00 64                       LDD     #LOW               ;Not high or medium, must be low
+20db 7c 18 0a                       STD     V_CONSTANT         ;Store low value to memory
+20de 20 0e                          BRA     TOT_TIME           ;Skip to enter total time
+20e0 cc 03 e8           STORE_MV    LDD     #MEDIUM
+20e3 7c 18 0a                       STD     V_CONSTANT         ;Store medium value to memory
+20e6 20 06                          BRA     TOT_TIME           ;Skip to enter total time
+20e8 cc 27 10           STORE_HV    LDD     #HIGH
+20eb 7c 18 0a                       STD     V_CONSTANT         ;Store high value to memory
+                        
+                        ; Tell user to input total time
+20ee cc 12 39           TOT_TIME    LDD     #NEWLINE           ;Print out blank lines
+20f1 fe ee 88                       LDX     PRINTF
+20f4 15 00                          JSR     0,X
+20f6 cc 11 18                       LDD     #T1_MSG
+20f9 fe ee 88                       LDX     PRINTF
+20fc 15 00                          JSR     0,X
+20fe cc 11 3d                       LDD     #T2_MSG
+2101 fe ee 88                       LDX     PRINTF
+2104 15 00                          JSR     0,X
+                        
+                        ; Get the user's input and capture total time
+2106 fe ee 84                       LDX     GETCHAR           ;Get user input
+2109 15 00                          JSR     0,X
+210b fe ee 86                       LDX     PUTCHAR           ;Display user input to screen
+210e 15 00                          JSR     0,X
+2110 c1 31                          CMPB    #'1               ;Is user input a '1' for high?
+2112 27 14                          BEQ     STORE_HT          ;If '1', jump to routine for storing high
+2114 c1 32                          CMPB    #'2               ;Is user input a '2' for medium?
+2116 27 08                          BEQ     STORE_MT          ;If '2', jump to routine for storing med
+2118 cc 00 64                       LDD     #LOW              ;Not high or medium, must be low
+211b 7c 18 0c                       STD     T_TOTAL           ;Store low value to memory
+211e 20 0e                          BRA     END_TOT_TIM       ;Skip to end of subroutine
+2120 cc 03 e8           STORE_MT    LDD     #MEDIUM
+2123 7c 18 0c                       STD     T_TOTAL           ;Store medium value to memory
+2126 20 06                          BRA     END_TOT_TIM       ;Skip to end of subroutine
+2128 cc 27 10           STORE_HT    LDD     #HIGH
+212b 7c 18 0c                       STD     T_TOTAL           ;Store high value to memory
+                        
+212e cc 12 39           END_TOT_TIM LDD     #NEWLINE          ;Print out blank lines
+2131 fe ee 88                       LDX     PRINTF
+2134 15 00                          JSR     0,X
+2136 3d                             RTS                       ;End subroutine
+                                    
+                        ;Output data to terminal once program has run
+2137 35                 DISP_DATA   PSHY                      ;Save Y on stack (dbug routines change Y)
+2138 cc 11 5d                       LDD     #V_P_MSG
+213b fe ee 88                       LDX     PRINTF
+213e 15 00                          JSR     0,X
+                                                
+2140 cc 00 00                       LDD     #$0               ;Start counter at 0
+2143 3b                             PSHD                      ;Save counter to stack
+2144 1b 9e                          LEAS    -2,SP             ;Move stack pointer 1 word above counter
+                                                              ;to prevent erasing counter
+                        
+2146 1b 84              PRINT_VALUE LEAS    4,SP              ;Lower stack pointer 1 word (2 bytes)
+2148 31                             PULY
+2149 ec 71                          LDD     2,Y+              ;Store index address of velocity values to
+                                                              ;D and increment index by 2
+214b 35                             PSHY
+214c 1b 9e                          LEAS    -2,SP
+214e 3b                             PSHD                      ;Velocity as 2nd parameter of string
+                                                              ;Printf routine will read this from stack
+214f ec 82                          LDD     2,SP              ;Retrieve counter from stack
+2151 52                             INCB                      ;Increment counter
+2152 6c 82                          STD     2,SP              ;Store counter back to stack
+2154 3b                             PSHD                      ;Counter as 1st parameter of string
+                                                              ;Printf routine will read this from stack
+2155 cc 11 8d                       LDD     #V_OUT
+2158 fe ee 88                       LDX     PRINTF
+215b 15 00                          JSR     0,X               ;Print out velocity value message and both
+                                                              ;parameters in string from stack
+215d 3a                             PULD                      ;Retrieve counter from stack
+215e 8c 00 1e                       CPD     #!30              ;Number of times to iterate data to screen
+2161 26 e3                          BNE     PRINT_VALUE       ;Continue until all values have displayed
+                        
+                        ;Display ta, tc, tt, delta velocity to screen
+2163 cc 12 39                       LDD     #NEWLINE
+2166 fe ee 88                       LDX     PRINTF
+2169 15 00                          JSR     0,X
+216b fc 18 00                       LDD     TA
+216e 3b                             PSHD
+216f cc 11 af                       LDD     #TA_OUT
+2172 fe ee 88                       LDX     PRINTF
+2175 15 00                          JSR     0,X
+2177 fc 18 02                       LDD     TC
+217a 3b                             PSHD
+217b cc 11 d1                       LDD     #TC_OUT
+217e fe ee 88                       LDX     PRINTF
+2181 15 00                          JSR     0,X
+2183 fc 18 04                       LDD     TT
+2186 3b                             PSHD
+2187 cc 11 f3                       LDD     #TTOTAL_OUT
+218a fe ee 88                       LDX     PRINTF
+218d 15 00                          JSR     0,X
+218f fc 18 06                       LDD     DELTA_V
+2192 3b                             PSHD
+2193 cc 12 15                       LDD     #DELTAV_OUT
+2196 fe ee 88                       LDX     PRINTF
+2199 15 00                          JSR     0,X
+219b 1b 8e                          LEAS    !14,SP            ;Adjust stack pointer for return address
+219d 3d                             RTS
+
+Executed: Wed Nov 04 13:58:03 2015
+Total cycles: 562, Total bytes: 876
+Total errors: 0, Total warnings: 0

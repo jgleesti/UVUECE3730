@@ -1,0 +1,46 @@
+
+as12, an absolute assembler for Motorola MCU's, version 1.2h
+
+                        ;===================================================================
+                        ; Jordan Lee
+                        ; ECE 3730
+                        ; 09.21.2015
+                        ; Description: This program takes three numbers from memory, which 
+                        ; emulate numbers from an IR sensor. It then makes a decision based
+                        ; on the three numbers given. The decisions happen if the number is
+                        ; above a threshold of 55.
+                        ;===================================================================
+0055                    TRESH 	EQU $55    	;Store the value 55 as TRESHOLD
+4100                        	ORG $4100  	;Start the program here
+4100 b6 40 00               	LDAA $4000  	;Get input from sensor
+4103 7a 08 00               	STAA $0800  	;Store input to 800
+4106 b6 40 01               	LDAA $4001  	;Repeat
+4109 7a 08 01               	STAA $0801
+410c b6 40 02               	LDAA $4002  	;Repeat
+410f 7a 08 02               	STAA $0802
+4112 86 55                  	LDAA #TRESH   	;Load THRESHOLD to Accumulator A
+4114 b1 08 00               	CMPA $0800  	;Compare to value in 800
+4117 22 0d                  	BHI GT1    	;Branch if greater than THRESHOLD
+4119 c6 01                  	LDAB #$1    	;Get Summation of 1 through 5
+411b cb 02                  	ADDB #$2
+411d cb 03                  	ADDB #$3
+411f cb 04                  	ADDB #$4
+4121 cb 05                  	ADDB #$5
+4123 7b 08 00               	STAB $0800  	;Store summation in 800
+Project1.asm:27: Error - Symbol TRE is undefined.
+4126 86 00              GT1 	LDAA #TRE   	;Check the second value
+4128 b1 08 01               	CMPA $0801
+412b 22 05                  	BHI GT2
+412d c6 00                  	LDAB #$00   	;Store 00 to 801
+412f 7b 08 01               	STAB $0801
+Project1.asm:32: Error - Symbol TRE is undefined.
+4132 86 00              GT2 	LDAA #TRE   	;Check the third value
+4134 b1 08 02               	CMPA $0802
+4137 22 08                  	BHI GT3
+4139 f6 08 02               	LDAB $0802  	;Subtract 10 from 802
+413c c0 10                  	SUBB #$10
+413e 7b 08 02               	STAB $0802
+4141 3f                 GT3 	SWI         	;Software Interrupt to check if numbers are correct.
+
+Executed: Wed Nov 04 22:14:06 2015
+Total errors: 2, Total warnings: 0
