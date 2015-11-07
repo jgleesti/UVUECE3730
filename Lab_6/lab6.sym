@@ -1,7 +1,13 @@
-gt1        2023
-gt2        202f
-gt3        203e
+gt1        2029
+gt2        2035
+gt3        2044
 m4000      0000
 m4001      0010
 m4002      0050
+poll_switch_1 2047
+poll_switch_2 2056
+portj      0268
+print_lcd  2055
+switch     0001
 thresh     0055
+time_delay 2051

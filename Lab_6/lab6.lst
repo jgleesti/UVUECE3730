@@ -2,7 +2,7 @@
 as12, an absolute assembler for Motorola MCU's, version 1.2h
 
                         ;===================================================================
-                        ; Jordan Lee
+                        ; Jordan Lee, Justn Limb, Logan Barnes
                         ; ECE 3730
                         ; 09.21.2015
                         ; Description: This program takes three numbers from memory, which 
@@ -12,40 +12,62 @@ as12, an absolute assembler for Motorola MCU's, version 1.2h
                         ;===================================================================
                         
                         ;Put in dummy values in order to do this lab on the new board
-0000                    M4000       EQU $00
-0010                    M4001       EQU $10
-0050                    M4002       EQU $50
+1000                                    ORG  $1000
+0000                    M4000           EQU  $00
+0010                    M4001           EQU  $10
+0050                    M4002           EQU  $50
                         
-0055                    THRESH      EQU $55            ;Store the value 55 as TRESHOLD
-2000                                ORG $2000          ;Start the program here
-2000 86 00                          LDAA #M4000          ;Get input from sensor
-2002 7a 28 00                       STAA $2800          ;Store input to 800
-2005 86 10                          LDAA #M4001          ;Repeat for next value
-2007 7a 28 01                       STAA $2801
-200a 86 50                          LDAA #M4002          ;Repeat for final value
-200c 7a 28 02                       STAA $2802
-200f 86 55                          LDAA #THRESH           ;Load THRESHOLD to Accumulator A
-2011 b1 28 00                       CMPA $2800          ;Compare to value in 800
-2014 22 0d                          BHI GT1            ;Branch if greater than THRESHOLD
-2016 c6 01                          LDAB #$1            ;Get Summation of 1 through 5
-2018 cb 02                          ADDB #$2
-201a cb 03                          ADDB #$3
-201c cb 04                          ADDB #$4
-201e cb 05                          ADDB #$5
-2020 7b 28 00                       STAB $2800          ;Store summation in 800
-2023 86 55              GT1         LDAA #THRESH           ;Check the second value
-2025 b1 28 01                       CMPA $2801
-2028 22 05                          BHI GT2
-202a c6 00                          LDAB #$00           ;Store 00 to 801
-202c 7b 08 01                       STAB $0801
-202f 86 55              GT2         LDAA #THRESH           ;Check the third value
-2031 b1 28 02                       CMPA $2802
-2034 22 08                          BHI GT3
-2036 f6 28 02                       LDAB $2802          ;Subtract 10 from 802
-2039 c0 10                          SUBB #$10
-203b 7b 28 02                       STAB $2802
-203e 3f                 GT3         SWI                 ;Software Interrupt to check if numbers are correct.
+                        
+0001                    SWITCH          EQU  $01           ;Port J(0) assertion testing
+0268                    PORTJ           EQU  $0268         ;Port J data register for switch input
+                        
+                        		;ORG $2000
+0055                    THRESH          EQU  $55           ;Store the value 55 as TRESHOLD
+2000                                    ORG  $2000         ;Start the program here
+2000 16 20 47                           JSR  POLL_SWITCH_1
+2003 16 20 51                           JSR  TIME_DELAY
+2006 86 00                              LDAA #M4000        ;Get input from sensor
+2008 7a 28 00                           STAA $2800         ;Store input to 800
+200b 86 10                              LDAA #M4001        ;Repeat for next value
+200d 7a 28 01                           STAA $2801
+2010 86 50                              LDAA #M4002        ;Repeat for final value
+2012 7a 28 02                           STAA $2802
+2015 86 55                              LDAA #THRESH       ;Load THRESHOLD to Accumulator A
+2017 b1 28 00                           CMPA $2800         ;Compare to value in 800
+201a 22 0d                              BHI  GT1           ;Branch if greater than THRESHOLD
+201c c6 01                              LDAB #$1           ;Get Summation of 1 through 5
+201e cb 02                              ADDB #$2
+2020 cb 03                              ADDB #$3
+2022 cb 04                              ADDB #$4
+2024 cb 05                              ADDB #$5
+2026 7b 28 00                           STAB $2800         ;Store summation in 800
+2029 86 55              GT1             LDAA #THRESH       ;Check the second value
+202b b1 28 01                           CMPA $2801
+202e 22 05                              BHI  GT2
+2030 c6 00                              LDAB #$00          ;Store 00 to 801
+2032 7b 28 01                           STAB $2801
+2035 86 55              GT2             LDAA #THRESH       ;Check the third value
+2037 b1 28 02                           CMPA $2802
+203a 22 08                              BHI  GT3
+203c f6 28 02                           LDAB $2802         ;Subtract 10 from 802
+203f c0 10                              SUBB #$10
+2041 7b 28 02                           STAB $2802
+2044 16 20 44           GT3             JSR  GT3           ;Software Interrupt to hold information on the screen
+                        
+2047 b6 02 68           POLL_SWITCH_1   LDAA PORTJ         ;Load A with port J for detecting switch
+204a 84 01                              ANDA #SWITCH       ;Verify port j(0) for testing switch
+204c 81 01                              CMPA #SWITCH       ;Is port j(0) a high?
+204e 26 f7                              BNE  POLL_SWITCH_1 ;If no switch contact, poll again
+2050 3d                                 RTS
+                        
+2051 16 20 56           TIME_DELAY      JSR  POLL_SWITCH_2
+2054 3d                                 RTS
+                        
+2055 3d                 PRINT_LCD       RTS
+                        
+2056 16 20 55           POLL_SWITCH_2   JSR  PRINT_LCD
+2059 3d                                 RTS
 
-Executed: Wed Nov 04 22:43:50 2015
-Total cycles: 86, Total bytes: 63
+Executed: Sat Nov 07 13:59:41 2015
+Total cycles: 132, Total bytes: 90
 Total errors: 0, Total warnings: 0
