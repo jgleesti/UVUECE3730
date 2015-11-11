@@ -1,5 +1,5 @@
 ;===================================================================
-; Jordan Lee, Justn Limb, Logan Barnes
+; Jordan Lee, Justin Limb, Logan Barnes
 ; ECE 3730
 ; 09.21.2015
 ; Description: This program takes three numbers from memory, which 
