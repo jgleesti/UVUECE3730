@@ -1,13 +1,27 @@
-gt1        2029
+chirp      2053
+cr         000d
+ddrj       026a
+ddrj_ini   0000
+ddrt       0242
+ddrt_ini   0020
+debug      1000
+del        2067
+delay      2064
+gt1        2029
 gt2        2035
 gt3        2044
+lf         000a
 m4000      0000
 m4001      0010
 m4002      0050
+piezo      0020
 poll_switch_1 2047
-poll_switch_2 2056
+poll_switch_2 207a
 portj      0268
-print_lcd  2055
-switch     0001
+portt      0240
+print_lcd  2071
+printf     ee88
+switch_1   0001
+switch_2   0002
 thresh     0055
-time_delay 2051
+time_delay 206d

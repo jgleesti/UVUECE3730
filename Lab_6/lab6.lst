@@ -2,7 +2,7 @@
 as12, an absolute assembler for Motorola MCU's, version 1.2h
 
                         ;===================================================================
-                        ; Jordan Lee, Justn Limb, Logan Barnes
+                        ; Jordan Lee, Justin Limb, Logan Barnes
                         ; ECE 3730
                         ; 09.21.2015
                         ; Description: This program takes three numbers from memory, which 
@@ -18,14 +18,30 @@ as12, an absolute assembler for Motorola MCU's, version 1.2h
 0050                    M4002           EQU  $50
                         
                         
-0001                    SWITCH          EQU  $01           ;Port J(0) assertion testing
-0268                    PORTJ           EQU  $0268         ;Port J data register for switch input
+000d                    CR:             EQU   $0D        ;Return carrier in ascii
+000a                    LF:             EQU   $0A        ;Linefeed in ascii
                         
-                        		;ORG $2000
+                        ;Initialize ports for piezo speaker and button press
+0268                    PORTJ           EQU   $0268      ;Port J data register for switch input
+026a                    DDRJ            EQU   $026A      ;Port J direction register
+0000                    DDRJ_INI        EQU   $00        ;Port J input mask
+0240                    PORTT           EQU   $0240      ;Port T data register for piezo speaker output
+0242                    DDRT            EQU   $0242      ;Port T direction register
+0020                    DDRT_INI        EQU   $20        ;Port T(5) output mask
+0001                    SWITCH_1        EQU   $01        ;Port J(0) assertion testing
+0002                    SWITCH_2        EQU   $02        ;Port J(1) assertion testing
+0020                    PIEZO           EQU   $20        ;Port T(5) output for piezo sound
+                        
+ee88                    PRINTF          EQU   $EE88      ;9S12
+                        
+1000 44 45 42 55 47     DEBUG           FCC                'DEBUG'
+1005 0d 0a 00                           DB CR,LF,0
+                        
+                                        ;ORG $2000
 0055                    THRESH          EQU  $55           ;Store the value 55 as TRESHOLD
 2000                                    ORG  $2000         ;Start the program here
-2000 16 20 47                           JSR  POLL_SWITCH_1
-2003 16 20 51                           JSR  TIME_DELAY
+2000 16 20 7a                           JSR  POLL_SWITCH_2
+2003 16 20 6d                           JSR  TIME_DELAY
 2006 86 00                              LDAA #M4000        ;Get input from sensor
 2008 7a 28 00                           STAA $2800         ;Store input to 800
 200b 86 10                              LDAA #M4001        ;Repeat for next value
@@ -55,19 +71,47 @@ as12, an absolute assembler for Motorola MCU's, version 1.2h
 2044 16 20 44           GT3             JSR  GT3           ;Software Interrupt to hold information on the screen
                         
 2047 b6 02 68           POLL_SWITCH_1   LDAA PORTJ         ;Load A with port J for detecting switch
-204a 84 01                              ANDA #SWITCH       ;Verify port j(0) for testing switch
-204c 81 01                              CMPA #SWITCH       ;Is port j(0) a high?
+204a 84 01                              ANDA #SWITCH_1     ;Verify port j(0) for testing switch
+204c 81 01                              CMPA #SWITCH_1     ;Is port j(0) a high?
 204e 26 f7                              BNE  POLL_SWITCH_1 ;If no switch contact, poll again
-2050 3d                                 RTS
                         
-2051 16 20 56           TIME_DELAY      JSR  POLL_SWITCH_2
-2054 3d                                 RTS
+2050 cd 01 5e                           LDY     #$015E             ;Chirp length ((1/3500) * 0x15E = 100 mS)
+2053 86 20              CHIRP           LDAA    #PIEZO             ;Port T(5) mask into A
+2055 7a 02 40                           STAA    PORTT              ;Output high to piezo port T(5)
+2058 07 0a                              BSR     DELAY              ;Square wave time high
+205a 87                                 CLRA
+205b 7a 02 40                           STAA    PORTT              ;Turn off piezo
+205e 07 04                              BSR     DELAY              ;Square wave time low
+2060 03                                 DEY
+2061 26 f0                              BNE     CHIRP
+2063 3d                                 RTS
+                                        
+                        ;DEL interval equals 250nS ((24MHz BUS speed / 1) * 6 cycles = 250nS)
+                        ;250nS * 0x236 = 143 uS --> (1 / (143 uS * 2 Delays) = 3.5 KHz Tone)
+2064 ce 02 36           DELAY           LDX     #$0236
+2067 09                 DEL             DEX                        ;1 cycle
+2068 08                                 INX                        ;1 cycle
+2069 09                                 DEX                        ;1 cycle
+206a 26 fb                              BNE     DEL                ;3 cycles
+206c 3d                                 RTS
                         
-2055 3d                 PRINT_LCD       RTS
+206d 16 20 7a           TIME_DELAY      JSR  POLL_SWITCH_2
+2070 3d                                 RTS
                         
-2056 16 20 55           POLL_SWITCH_2   JSR  PRINT_LCD
-2059 3d                                 RTS
+2071 cc 10 00           PRINT_LCD       LDD     #DEBUG        ;Display switch assertion message
+2074 fe ee 88                           LDX     PRINTF
+2077 15 00                              JSR     0,X
+2079 3d                                 RTS
+                        
+207a b6 02 68           POLL_SWITCH_2   LDAA PORTJ         ;Load A with port J for detecting switch
+207d 84 02                              ANDA #SWITCH_2     ;Verify port j(1) for testing switch
+207f 81 02                              CMPA #SWITCH_2     ;Is port j(1) a high?
+2081 26 f7                              BNE  POLL_SWITCH_2 ;If no switch contact, poll again
+                        
+                                        
+2083 16 20 71                           JSR  PRINT_LCD
+2086 3d                                 RTS
 
-Executed: Sat Nov 07 13:59:41 2015
-Total cycles: 132, Total bytes: 90
+Executed: Thu Nov 12 00:10:03 2015
+Total cycles: 190, Total bytes: 143
 Total errors: 0, Total warnings: 0

@@ -15,13 +15,29 @@ M4001           EQU  $10
 M4002           EQU  $50
 
 
-SWITCH          EQU  $01           ;Port J(0) assertion testing
-PORTJ           EQU  $0268         ;Port J data register for switch input
+CR:             EQU   $0D        ;Return carrier in ascii
+LF:             EQU   $0A        ;Linefeed in ascii
 
-		;ORG $2000
+;Initialize ports for piezo speaker and button press
+PORTJ           EQU   $0268      ;Port J data register for switch input
+DDRJ            EQU   $026A      ;Port J direction register
+DDRJ_INI        EQU   $00        ;Port J input mask
+PORTT           EQU   $0240      ;Port T data register for piezo speaker output
+DDRT            EQU   $0242      ;Port T direction register
+DDRT_INI        EQU   $20        ;Port T(5) output mask
+SWITCH_1        EQU   $01        ;Port J(0) assertion testing
+SWITCH_2        EQU   $02        ;Port J(1) assertion testing
+PIEZO           EQU   $20        ;Port T(5) output for piezo sound
+
+PRINTF          EQU   $EE88      ;9S12
+
+DEBUG           FCC                'DEBUG'
+                DB CR,LF,0
+
+                ;ORG $2000
 THRESH          EQU  $55           ;Store the value 55 as TRESHOLD
                 ORG  $2000         ;Start the program here
-                JSR  POLL_SWITCH_1
+                JSR  POLL_SWITCH_2
                 JSR  TIME_DELAY
                 LDAA #M4000        ;Get input from sensor
                 STAA $2800         ;Store input to 800
@@ -52,15 +68,43 @@ GT2             LDAA #THRESH       ;Check the third value
 GT3             JSR  GT3           ;Software Interrupt to hold information on the screen
 
 POLL_SWITCH_1   LDAA PORTJ         ;Load A with port J for detecting switch
-                ANDA #SWITCH       ;Verify port j(0) for testing switch
-                CMPA #SWITCH       ;Is port j(0) a high?
+                ANDA #SWITCH_1     ;Verify port j(0) for testing switch
+                CMPA #SWITCH_1     ;Is port j(0) a high?
                 BNE  POLL_SWITCH_1 ;If no switch contact, poll again
+
+                LDY     #$015E             ;Chirp length ((1/3500) * 0x15E = 100 mS)
+CHIRP           LDAA    #PIEZO             ;Port T(5) mask into A
+                STAA    PORTT              ;Output high to piezo port T(5)
+                BSR     DELAY              ;Square wave time high
+                CLRA
+                STAA    PORTT              ;Turn off piezo
+                BSR     DELAY              ;Square wave time low
+                DEY
+                BNE     CHIRP
+                RTS
+                
+;DEL interval equals 250nS ((24MHz BUS speed / 1) * 6 cycles = 250nS)
+;250nS * 0x236 = 143 uS --> (1 / (143 uS * 2 Delays) = 3.5 KHz Tone)
+DELAY           LDX     #$0236
+DEL             DEX                        ;1 cycle
+                INX                        ;1 cycle
+                DEX                        ;1 cycle
+                BNE     DEL                ;3 cycles
                 RTS
 
 TIME_DELAY      JSR  POLL_SWITCH_2
                 RTS
 
-PRINT_LCD       RTS
+PRINT_LCD       LDD     #DEBUG        ;Display switch assertion message
+                LDX     PRINTF
+                JSR     0,X
+                RTS
 
-POLL_SWITCH_2   JSR  PRINT_LCD
+POLL_SWITCH_2   LDAA PORTJ         ;Load A with port J for detecting switch
+                ANDA #SWITCH_2     ;Verify port j(1) for testing switch
+                CMPA #SWITCH_2     ;Is port j(1) a high?
+                BNE  POLL_SWITCH_2 ;If no switch contact, poll again
+
+                
+                JSR  PRINT_LCD
                 RTS
