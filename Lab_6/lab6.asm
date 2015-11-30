@@ -29,6 +29,9 @@ SWITCH_1        EQU   $01        ;Port J(0) assertion testing
 SWITCH_2        EQU   $02        ;Port J(1) assertion testing
 PIEZO           EQU   $20        ;Port T(5) output for piezo sound
 
+;Other needed constants
+DELAY_AMT       EQU   $B7    ;Delay is (11 + 4 x   ) X j
+
 PRINTF          EQU   $EE88      ;9S12
 
 DEBUG           FCC                'DEBUG'
@@ -37,8 +40,19 @@ DEBUG           FCC                'DEBUG'
                 ;ORG $2000
 THRESH          EQU  $55           ;Store the value 55 as TRESHOLD
                 ORG  $2000         ;Start the program here
-                JSR  POLL_SWITCH_2
-                JSR  TIME_DELAY
+                JSR  POLL_SWITCH_1
+                
+                LDD  #DEBUG        ;Display debug message
+                LDX  PRINTF
+                JSR  0,X
+                
+                LDX  #$02          ;Put the amount for time delay into X (seconds)
+                JSR  DELAY_SEC
+                
+                LDD  #DEBUG        ;Display debug message
+                LDX  PRINTF
+                JSR  0,X
+                
                 LDAA #M4000        ;Get input from sensor
                 STAA $2800         ;Store input to 800
                 LDAA #M4001        ;Repeat for next value
@@ -92,8 +106,26 @@ DEL             DEX                        ;1 cycle
                 BNE     DEL                ;3 cycles
                 RTS
 
-TIME_DELAY      JSR  POLL_SWITCH_2
+;Register X will have the amount in milliseconds for the delay
+;Each cycle takes 40 nanoseconds to complete. 1 millisecond is 25000 cycles
+;Each repetition of the subroutine will take 1 millisecond
+DELAY_MSEC      DEX           ; 1 cycle
+                PSHX          ;
+                PULX
+                BNE  DELAY_MSEC
                 RTS
+
+;This subroutine calls the DELAY_MSEC 1000 times. 1000 milliseconds = 1 second
+DELAY_SEC       LDY     #$03E8
+                PSHX
+D_SEC           LDX     #$13E8
+                JSR     DELAY_MSEC
+                DEY
+                BNE     D_SEC
+                PULX
+                BNE     DELAY_SEC
+                RTS
+
 
 PRINT_LCD       LDD     #DEBUG        ;Display switch assertion message
                 LDX     PRINTF

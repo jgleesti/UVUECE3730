@@ -32,6 +32,9 @@ as12, an absolute assembler for Motorola MCU's, version 1.2h
 0002                    SWITCH_2        EQU   $02        ;Port J(1) assertion testing
 0020                    PIEZO           EQU   $20        ;Port T(5) output for piezo sound
                         
+                        ;Other needed constants
+00b7                    DELAY_AMT       EQU   $B7    ;Delay is (11 + 4 x   ) X j
+                        
 ee88                    PRINTF          EQU   $EE88      ;9S12
                         
 1000 44 45 42 55 47     DEBUG           FCC                'DEBUG'
@@ -40,78 +43,107 @@ ee88                    PRINTF          EQU   $EE88      ;9S12
                                         ;ORG $2000
 0055                    THRESH          EQU  $55           ;Store the value 55 as TRESHOLD
 2000                                    ORG  $2000         ;Start the program here
-2000 16 20 7a                           JSR  POLL_SWITCH_2
-2003 16 20 6d                           JSR  TIME_DELAY
-2006 86 00                              LDAA #M4000        ;Get input from sensor
-2008 7a 28 00                           STAA $2800         ;Store input to 800
-200b 86 10                              LDAA #M4001        ;Repeat for next value
-200d 7a 28 01                           STAA $2801
-2010 86 50                              LDAA #M4002        ;Repeat for final value
-2012 7a 28 02                           STAA $2802
-2015 86 55                              LDAA #THRESH       ;Load THRESHOLD to Accumulator A
-2017 b1 28 00                           CMPA $2800         ;Compare to value in 800
-201a 22 0d                              BHI  GT1           ;Branch if greater than THRESHOLD
-201c c6 01                              LDAB #$1           ;Get Summation of 1 through 5
-201e cb 02                              ADDB #$2
-2020 cb 03                              ADDB #$3
-2022 cb 04                              ADDB #$4
-2024 cb 05                              ADDB #$5
-2026 7b 28 00                           STAB $2800         ;Store summation in 800
-2029 86 55              GT1             LDAA #THRESH       ;Check the second value
-202b b1 28 01                           CMPA $2801
-202e 22 05                              BHI  GT2
-2030 c6 00                              LDAB #$00          ;Store 00 to 801
-2032 7b 28 01                           STAB $2801
-2035 86 55              GT2             LDAA #THRESH       ;Check the third value
-2037 b1 28 02                           CMPA $2802
-203a 22 08                              BHI  GT3
-203c f6 28 02                           LDAB $2802         ;Subtract 10 from 802
-203f c0 10                              SUBB #$10
-2041 7b 28 02                           STAB $2802
-2044 16 20 44           GT3             JSR  GT3           ;Software Interrupt to hold information on the screen
+2000 16 20 5a                           JSR  POLL_SWITCH_1
+                                        
+2003 cc 10 00                           LDD  #DEBUG        ;Display debug message
+2006 fe ee 88                           LDX  PRINTF
+2009 15 00                              JSR  0,X
+                                        
+200b ce 00 02                           LDX  #$02          ;Put the amount for time delay into X (seconds)
+200e 16 20 86                           JSR  DELAY_SEC
+                                        
+2011 cc 10 00                           LDD  #DEBUG        ;Display debug message
+2014 fe ee 88                           LDX  PRINTF
+2017 15 00                              JSR  0,X
+                                        
+2019 86 00                              LDAA #M4000        ;Get input from sensor
+201b 7a 28 00                           STAA $2800         ;Store input to 800
+201e 86 10                              LDAA #M4001        ;Repeat for next value
+2020 7a 28 01                           STAA $2801
+2023 86 50                              LDAA #M4002        ;Repeat for final value
+2025 7a 28 02                           STAA $2802
+2028 86 55                              LDAA #THRESH       ;Load THRESHOLD to Accumulator A
+202a b1 28 00                           CMPA $2800         ;Compare to value in 800
+202d 22 0d                              BHI  GT1           ;Branch if greater than THRESHOLD
+202f c6 01                              LDAB #$1           ;Get Summation of 1 through 5
+2031 cb 02                              ADDB #$2
+2033 cb 03                              ADDB #$3
+2035 cb 04                              ADDB #$4
+2037 cb 05                              ADDB #$5
+2039 7b 28 00                           STAB $2800         ;Store summation in 800
+203c 86 55              GT1             LDAA #THRESH       ;Check the second value
+203e b1 28 01                           CMPA $2801
+2041 22 05                              BHI  GT2
+2043 c6 00                              LDAB #$00          ;Store 00 to 801
+2045 7b 28 01                           STAB $2801
+2048 86 55              GT2             LDAA #THRESH       ;Check the third value
+204a b1 28 02                           CMPA $2802
+204d 22 08                              BHI  GT3
+204f f6 28 02                           LDAB $2802         ;Subtract 10 from 802
+2052 c0 10                              SUBB #$10
+2054 7b 28 02                           STAB $2802
+2057 16 20 57           GT3             JSR  GT3           ;Software Interrupt to hold information on the screen
                         
-2047 b6 02 68           POLL_SWITCH_1   LDAA PORTJ         ;Load A with port J for detecting switch
-204a 84 01                              ANDA #SWITCH_1     ;Verify port j(0) for testing switch
-204c 81 01                              CMPA #SWITCH_1     ;Is port j(0) a high?
-204e 26 f7                              BNE  POLL_SWITCH_1 ;If no switch contact, poll again
+205a b6 02 68           POLL_SWITCH_1   LDAA PORTJ         ;Load A with port J for detecting switch
+205d 84 01                              ANDA #SWITCH_1     ;Verify port j(0) for testing switch
+205f 81 01                              CMPA #SWITCH_1     ;Is port j(0) a high?
+2061 26 f7                              BNE  POLL_SWITCH_1 ;If no switch contact, poll again
                         
-2050 cd 01 5e                           LDY     #$015E             ;Chirp length ((1/3500) * 0x15E = 100 mS)
-2053 86 20              CHIRP           LDAA    #PIEZO             ;Port T(5) mask into A
-2055 7a 02 40                           STAA    PORTT              ;Output high to piezo port T(5)
-2058 07 0a                              BSR     DELAY              ;Square wave time high
-205a 87                                 CLRA
-205b 7a 02 40                           STAA    PORTT              ;Turn off piezo
-205e 07 04                              BSR     DELAY              ;Square wave time low
-2060 03                                 DEY
-2061 26 f0                              BNE     CHIRP
-2063 3d                                 RTS
+2063 cd 01 5e                           LDY     #$015E             ;Chirp length ((1/3500) * 0x15E = 100 mS)
+2066 86 20              CHIRP           LDAA    #PIEZO             ;Port T(5) mask into A
+2068 7a 02 40                           STAA    PORTT              ;Output high to piezo port T(5)
+206b 07 0a                              BSR     DELAY              ;Square wave time high
+206d 87                                 CLRA
+206e 7a 02 40                           STAA    PORTT              ;Turn off piezo
+2071 07 04                              BSR     DELAY              ;Square wave time low
+2073 03                                 DEY
+2074 26 f0                              BNE     CHIRP
+2076 3d                                 RTS
                                         
                         ;DEL interval equals 250nS ((24MHz BUS speed / 1) * 6 cycles = 250nS)
                         ;250nS * 0x236 = 143 uS --> (1 / (143 uS * 2 Delays) = 3.5 KHz Tone)
-2064 ce 02 36           DELAY           LDX     #$0236
-2067 09                 DEL             DEX                        ;1 cycle
-2068 08                                 INX                        ;1 cycle
-2069 09                                 DEX                        ;1 cycle
-206a 26 fb                              BNE     DEL                ;3 cycles
-206c 3d                                 RTS
+2077 ce 02 36           DELAY           LDX     #$0236
+207a 09                 DEL             DEX                        ;1 cycle
+207b 08                                 INX                        ;1 cycle
+207c 09                                 DEX                        ;1 cycle
+207d 26 fb                              BNE     DEL                ;3 cycles
+207f 3d                                 RTS
                         
-206d 16 20 7a           TIME_DELAY      JSR  POLL_SWITCH_2
-2070 3d                                 RTS
+                        ;Register X will have the amount in milliseconds for the delay
+                        ;Each cycle takes 40 nanoseconds to complete. 1 millisecond is 25000 cycles
+                        ;Each repetition of the subroutine will take 1 millisecond
+2080 09                 DELAY_MSEC      DEX           ; 1 cycle
+2081 34                                 PSHX          ;
+2082 30                                 PULX
+2083 26 fb                              BNE  DELAY_MSEC
+2085 3d                                 RTS
                         
-2071 cc 10 00           PRINT_LCD       LDD     #DEBUG        ;Display switch assertion message
-2074 fe ee 88                           LDX     PRINTF
-2077 15 00                              JSR     0,X
-2079 3d                                 RTS
+                        ;This subroutine calls the DELAY_MSEC 1000 times. 1000 milliseconds = 1 second
+2086 cd 03 e8           DELAY_SEC       LDY     #$03E8
+2089 34                                 PSHX
+208a ce 13 e8           D_SEC           LDX     #$13E8
+208d 16 20 80                           JSR     DELAY_MSEC
+2090 03                                 DEY
+2091 26 f7                              BNE     D_SEC
+2093 30                                 PULX
+2094 26 f0                              BNE     DELAY_SEC
+2096 3d                                 RTS
                         
-207a b6 02 68           POLL_SWITCH_2   LDAA PORTJ         ;Load A with port J for detecting switch
-207d 84 02                              ANDA #SWITCH_2     ;Verify port j(1) for testing switch
-207f 81 02                              CMPA #SWITCH_2     ;Is port j(1) a high?
-2081 26 f7                              BNE  POLL_SWITCH_2 ;If no switch contact, poll again
+                        
+2097 cc 10 00           PRINT_LCD       LDD     #DEBUG        ;Display switch assertion message
+209a fe ee 88                           LDX     PRINTF
+209d 15 00                              JSR     0,X
+209f 3d                                 RTS
+                        
+20a0 b6 02 68           POLL_SWITCH_2   LDAA PORTJ         ;Load A with port J for detecting switch
+20a3 84 02                              ANDA #SWITCH_2     ;Verify port j(1) for testing switch
+20a5 81 02                              CMPA #SWITCH_2     ;Is port j(1) a high?
+20a7 26 f7                              BNE  POLL_SWITCH_2 ;If no switch contact, poll again
                         
                                         
-2083 16 20 71                           JSR  PRINT_LCD
-2086 3d                                 RTS
+20a9 16 20 97                           JSR  PRINT_LCD
+20ac 3d                                 RTS
 
-Executed: Thu Nov 12 00:10:03 2015
-Total cycles: 190, Total bytes: 143
+Executed: Sun Nov 29 19:52:10 2015
+Total cycles: 242, Total bytes: 181
 Total errors: 0, Total warnings: 0
